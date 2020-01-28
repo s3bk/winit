@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent, UiEvent};
 
 pub struct Canvas {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -25,6 +25,7 @@ pub struct Canvas {
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
+    on_resize: Option<Closure<dyn FnMut(UiEvent)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -76,6 +77,7 @@ impl Canvas {
             on_mouse_press: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
+            on_resize: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
         })
     }
@@ -249,6 +251,19 @@ impl Canvas {
     {
         self.on_fullscreen_change =
             Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+    }
+
+    pub fn on_resize<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        let closure = Closure::wrap(Box::new(move |event: UiEvent| handler()) as Box<dyn FnMut(UiEvent)>);
+
+        web_sys::window().unwrap()
+            .add_event_listener_with_callback("resize", &closure.as_ref().unchecked_ref())
+            .expect("Failed to add event listener with callback");
+        
+        self.on_resize = Some(closure);
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>

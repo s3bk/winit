@@ -109,7 +109,7 @@ impl<T: 'static> EventProcessor<T> {
 
     pub(super) fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
-        F: FnMut(Event<'_, T>),
+        F: FnMut(Event<T>),
     {
         let wt = get_xtarget(&self.target);
         // XFilterEvent tells us when an event has been discarded by the input method.
@@ -429,7 +429,7 @@ impl<T: 'static> EventProcessor<T> {
                             );
 
                             let old_inner_size = PhysicalSize::new(width, height);
-                            let mut new_inner_size = PhysicalSize::new(new_width, new_height);
+                            let new_inner_size = PhysicalSize::new(new_width, new_height);
 
                             // Temporarily unlock shared state to prevent deadlock
                             MutexGuard::unlocked(&mut shared_state_lock, || {
@@ -437,7 +437,7 @@ impl<T: 'static> EventProcessor<T> {
                                     window_id,
                                     event: WindowEvent::ScaleFactorChanged {
                                         scale_factor: new_scale_factor,
-                                        new_inner_size: &mut new_inner_size,
+                                        new_inner_size,
                                     },
                                 });
                             });
@@ -1153,14 +1153,14 @@ impl<T: 'static> EventProcessor<T> {
                                                     );
                                                     let old_inner_size =
                                                         PhysicalSize::new(width, height);
-                                                    let mut new_inner_size =
+                                                    let new_inner_size =
                                                         PhysicalSize::new(new_width, new_height);
 
                                                     callback(Event::WindowEvent {
                                                         window_id,
                                                         event: WindowEvent::ScaleFactorChanged {
                                                             scale_factor: new_monitor.scale_factor,
-                                                            new_inner_size: &mut new_inner_size,
+                                                            new_inner_size,
                                                         },
                                                     });
 
@@ -1196,7 +1196,7 @@ impl<T: 'static> EventProcessor<T> {
         state: ElementState,
         callback: &mut F,
     ) where
-        F: FnMut(Event<'_, T>),
+        F: FnMut(Event<T>),
     {
         let wt = get_xtarget(&self.target);
 

@@ -1,6 +1,6 @@
 use super::{backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
-use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
+use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent, DeviceEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 use std::clone::Clone;
@@ -28,7 +28,7 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'static, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
     }
 
@@ -71,6 +71,10 @@ impl<T> WindowTarget<T> {
                     is_synthetic: false,
                 },
             });
+            runner.send_event(Event::DeviceEvent {
+                device_id: DeviceId(unsafe { device::Id::dummy() }),
+                event: DeviceEvent::ModifiersChanged(modifiers)
+            });
         });
 
         let runner = self.runner.clone();
@@ -88,6 +92,10 @@ impl<T> WindowTarget<T> {
                     },
                     is_synthetic: false,
                 },
+            });
+            runner.send_event(Event::DeviceEvent {
+                device_id: DeviceId(unsafe { device::Id::dummy() }),
+                event: DeviceEvent::ModifiersChanged(modifiers)
             });
         });
 
@@ -198,6 +206,16 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(WindowId(id));
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_resize(move || {
+            let scale_factor = backend::scale_factor();
+            let new_inner_size = backend::window_size().to_physical(scale_factor);
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::ScaleFactorChanged{ scale_factor, new_inner_size }
+            });
         });
     }
 }
