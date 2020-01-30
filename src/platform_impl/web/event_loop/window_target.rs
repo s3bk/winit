@@ -217,5 +217,10 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::ScaleFactorChanged{ scale_factor, new_inner_size }
             });
         });
+
+        let runner = self.runner.clone();
+        canvas.on_unload(move || {
+            runner.send_event(Event::LoopDestroyed);
+        });
     }
 }

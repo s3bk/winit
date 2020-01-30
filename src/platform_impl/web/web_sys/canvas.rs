@@ -26,6 +26,7 @@ pub struct Canvas {
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     on_resize: Option<Closure<dyn FnMut(UiEvent)>>,
+    on_unload: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -78,6 +79,7 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_resize: None,
+            on_unload: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
         })
     }
@@ -257,13 +259,16 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        let closure = Closure::wrap(Box::new(move |event: UiEvent| handler()) as Box<dyn FnMut(UiEvent)>);
+        self.on_resize =
+            Some(self.add_window_event("resize", move |_: UiEvent| handler()));
+    }
 
-        web_sys::window().unwrap()
-            .add_event_listener_with_callback("resize", &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
-        
-        self.on_resize = Some(closure);
+    pub fn on_unload<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_unload =
+            Some(self.add_window_event("unload", move |_: Event| handler()));
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
@@ -282,6 +287,28 @@ impl Canvas {
         }) as Box<dyn FnMut(E)>);
 
         self.raw
+            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+            .expect("Failed to add event listener with callback");
+
+        closure
+    }
+
+    fn add_window_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    where
+        E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
+        F: 'static + FnMut(E),
+    {
+        let closure = Closure::wrap(Box::new(move |event: E| {
+            {
+                let event_ref = event.as_ref();
+                event_ref.stop_propagation();
+                event_ref.cancel_bubble();
+            }
+
+            handler(event);
+        }) as Box<dyn FnMut(E)>);
+
+        web_sys::window().unwrap()
             .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
             .expect("Failed to add event listener with callback");
 
