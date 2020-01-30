@@ -13,18 +13,18 @@ use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent,
 pub struct Canvas {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlCanvasElement,
-    on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_keyboard_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_received_character: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
+    on_focus: Option<Closure<dyn FnMut(FocusEvent) -> bool>>,
+    on_blur: Option<Closure<dyn FnMut(FocusEvent) -> bool>>,
+    on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent) -> bool>>,
+    on_keyboard_press: Option<Closure<dyn FnMut(KeyboardEvent) -> bool>>,
+    on_received_character: Option<Closure<dyn FnMut(KeyboardEvent) -> bool>>,
+    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent) -> bool>>,
+    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent) -> bool>>,
+    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent) -> bool>>,
+    on_mouse_press: Option<Closure<dyn FnMut(PointerEvent) -> bool>>,
+    on_mouse_release: Option<Closure<dyn FnMut(PointerEvent) -> bool>>,
+    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent) -> bool>>,
+    on_fullscreen_change: Option<Closure<dyn FnMut(Event) -> bool>>,
     on_resize: Option<Closure<dyn FnMut(UiEvent)>>,
     on_unload: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
@@ -285,7 +285,8 @@ impl Canvas {
             }
 
             handler(event);
-        }) as Box<dyn FnMut(E)>);
+            false
+        }) as Box<dyn FnMut(E -> bool)>);
 
         self.raw
             .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
