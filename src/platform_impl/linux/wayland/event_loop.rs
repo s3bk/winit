@@ -56,15 +56,15 @@ const EVQ_TOKEN: Token = Token(2);
 
 #[derive(Clone)]
 pub struct EventsSink {
-    sender: Sender<Event<'static, ()>>,
+    sender: Sender<Event<()>>,
 }
 
 impl EventsSink {
-    pub fn new(sender: Sender<Event<'static, ()>>) -> EventsSink {
+    pub fn new(sender: Sender<Event<()>>) -> EventsSink {
         EventsSink { sender }
     }
 
-    pub fn send_event(&self, event: Event<'static, ()>) {
+    pub fn send_event(&self, event: Event<()>) {
         self.sender.send(event).unwrap()
     }
 
@@ -75,7 +75,7 @@ impl EventsSink {
         });
     }
 
-    pub fn send_window_event(&self, event: WindowEvent<'static>, window_id: WindowId) {
+    pub fn send_window_event(&self, event: WindowEvent, window_id: WindowId) {
         self.send_event(Event::WindowEvent {
             event,
             window_id: RootWindowId(PlatformWindowId::Wayland(window_id)),
@@ -239,7 +239,7 @@ pub struct EventLoop<T: 'static> {
     pub outputs: OutputMgr,
     // The cursor manager
     cursor_manager: Arc<Mutex<CursorManager>>,
-    kbd_channel: Receiver<Event<'static, ()>>,
+    kbd_channel: Receiver<Event<()>>,
     user_channel: Receiver<T>,
     user_sender: Sender<T>,
     window_target: RootELW<T>,
@@ -440,7 +440,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         std::process::exit(0);
@@ -448,7 +448,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
@@ -673,14 +673,14 @@ impl<T> EventLoop<T> {
 
     fn post_dispatch_triggers<F>(&mut self, mut callback: F, control_flow: &mut ControlFlow)
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
             _ => unreachable!(),
         };
 
-        let mut callback = |event: Event<'_, T>| {
+        let mut callback = |event: Event<T>| {
             sticky_exit_callback(event, &self.window_target, control_flow, &mut callback);
         };
 
@@ -730,13 +730,13 @@ impl<T> EventLoop<T> {
                 if let Some(dpi) = window.new_dpi {
                     let dpi = dpi as f64;
                     let logical_size = LogicalSize::<f64>::from(*window.size);
-                    let mut new_inner_size = logical_size.to_physical(dpi);
+                    let new_inner_size = logical_size.to_physical(dpi);
 
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ScaleFactorChanged {
                             scale_factor: dpi,
-                            new_inner_size: &mut new_inner_size,
+                            new_inner_size,
                         },
                     });
 

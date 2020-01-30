@@ -35,10 +35,10 @@ impl<T> EventLoop<T> {
         monitor::Handle
     }
 
-    pub fn run<F>(self, mut event_handler: F) -> !
+    pub fn run<F>(self, mut event_handler: F)
     where
         F: 'static
-            + FnMut(Event<'static, T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
+            + FnMut(Event<T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
     {
         let target = root::EventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -48,14 +48,6 @@ impl<T> EventLoop<T> {
         self.elw.p.run(Box::new(move |event, flow| {
             event_handler(event, &target, flow)
         }));
-
-        // Throw an exception to break out of Rust exceution and use unreachable to tell the
-        // compiler this function won't return, giving it a return type of '!'
-        backend::throw(
-            "Using exceptions for control flow, don't mind me. This isn't actually an error!",
-        );
-
-        unreachable!();
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {

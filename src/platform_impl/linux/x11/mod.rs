@@ -244,7 +244,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
@@ -384,7 +384,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         ::std::process::exit(0);
@@ -392,7 +392,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
@@ -492,20 +492,8 @@ impl<'a> Deref for DeviceInfo<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
-impl WindowId {
-    pub unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
-
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
 
 pub struct Window(Arc<UnownedWindow>);
 
