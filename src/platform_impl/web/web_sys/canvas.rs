@@ -271,7 +271,7 @@ impl Canvas {
             Some(self.add_window_event("unload", move |_: Event| handler()));
     }
 
-    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E) -> bool>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -286,7 +286,7 @@ impl Canvas {
 
             handler(event);
             false
-        }) as Box<dyn FnMut(E -> bool)>);
+        }) as Box<dyn FnMut(E) -> bool>);
 
         self.raw
             .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
@@ -320,7 +320,7 @@ impl Canvas {
     // The difference between add_event and add_user_event is that the latter has a special meaning
     // for browser security. A user event is a deliberate action by the user (like a mouse or key
     // press) and is the only time things like a fullscreen request may be successfully completed.)
-    fn add_user_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_user_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E) -> bool>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
