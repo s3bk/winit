@@ -19,8 +19,13 @@ impl<T> Clone for WindowTarget<T> {
 
 impl<T> WindowTarget<T> {
     pub fn new() -> Self {
+        let runner = runner::Shared::new();
+        let animation_frame_runner = runner.clone();
+        let animation_frame = backend::AnimationFrame::new(move |ts| animation_frame_runner.redraw());
+        runner.set_animation_frame(animation_frame);
+
         WindowTarget {
-            runner: runner::Shared::new(),
+            runner
         }
     }
 
@@ -219,8 +224,8 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_unload(move || {
-            runner.send_event(Event::LoopDestroyed);
+        canvas.on_before_unload(move || {
+            runner.handle_unload();
         });
     }
 }

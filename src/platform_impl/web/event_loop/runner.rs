@@ -5,7 +5,7 @@ use crate::window::WindowId;
 
 use instant::{Duration, Instant};
 use std::{
-    cell::RefCell,
+    cell::{RefCell, Cell},
     clone::Clone,
     collections::{HashSet, VecDeque},
     iter,
@@ -25,6 +25,8 @@ pub struct Execution<T: 'static> {
     events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     redraw_pending: RefCell<HashSet<WindowId>>,
+    redraw_requested: Cell<bool>,
+    request_animation_frame: RefCell<Option<backend::AnimationFrame>>
 }
 
 struct Runner<T: 'static> {
@@ -50,6 +52,8 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             redraw_pending: RefCell::new(HashSet::new()),
+            redraw_requested: Cell::new(false),
+            request_animation_frame: RefCell::default(),
         }))
     }
 
@@ -62,9 +66,10 @@ impl<T: 'static> Shared<T> {
     ) {
         self.0.runner.replace(Some(Runner::new(event_handler)));
         self.init();
+    }
 
-        let close_instance = self.clone();
-        backend::on_unload(move || close_instance.handle_unload());
+    pub fn set_animation_frame(&self, animation_frame: backend::AnimationFrame) {
+        *self.0.request_animation_frame.borrow_mut() = Some(animation_frame);
     }
 
     // Generate a strictly increasing ID
@@ -78,6 +83,9 @@ impl<T: 'static> Shared<T> {
 
     pub fn request_redraw(&self, id: WindowId) {
         self.0.redraw_pending.borrow_mut().insert(id);
+        if self.0.redraw_requested.replace(true) {
+            self.0.request_animation_frame.borrow().as_ref().unwrap().request_animation_frame();
+        }
     }
 
     pub fn init(&self) {
@@ -176,13 +184,6 @@ impl<T: 'static> Shared<T> {
         }
         self.handle_event(Event::MainEventsCleared, &mut control);
 
-        // Collect all of the redraw events to avoid double-locking the RefCell
-        let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
-        for window_id in redraw_events {
-            self.handle_event(Event::RedrawRequested(window_id), &mut control);
-        }
-        self.handle_event(Event::RedrawEventsCleared, &mut control);
-
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing
         // event should be emitted
@@ -191,7 +192,17 @@ impl<T: 'static> Shared<T> {
         }
     }
 
-    fn handle_unload(&self) {
+    pub fn redraw(&self) {
+        // Collect all of the redraw events to avoid double-locking the RefCell
+        let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
+        let mut control = self.current_control_flow();
+        for window_id in redraw_events {
+            self.handle_event(Event::RedrawRequested(window_id), &mut control);
+        }
+        self.handle_event(Event::RedrawEventsCleared, &mut control);
+    }
+
+    pub fn handle_unload(&self) {
         self.apply_control_flow(root::ControlFlow::Exit);
         let mut control = self.current_control_flow();
         self.handle_event(Event::LoopDestroyed, &mut control);

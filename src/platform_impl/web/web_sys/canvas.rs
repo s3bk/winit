@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent, UiEvent};
+use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent, UiEvent, BeforeUnloadEvent};
 
 pub struct Canvas {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -25,8 +25,8 @@ pub struct Canvas {
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
+    on_before_unload: Option<Closure<dyn FnMut(BeforeUnloadEvent)>>,
     on_resize: Option<Closure<dyn FnMut(UiEvent)>>,
-    on_unload: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -64,6 +64,11 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
+        // contenteditable is needed to the correct keys from deadkeys ('`' + 'e' -> 'è')
+        canvas
+            .set_attribute("contenteditable", "true")
+            .map_err(|_| os_error!(OsError("Failed to set a contenteditable".to_owned())))?;
+
         Ok(Canvas {
             raw: canvas,
             on_blur: None,
@@ -79,7 +84,7 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_resize: None,
-            on_unload: None,
+            on_before_unload: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
         })
     }
@@ -255,20 +260,20 @@ impl Canvas {
             Some(self.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
+    pub fn on_before_unload<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_before_unload =
+            Some(self.add_window_event("unbeforeunload", move |_: BeforeUnloadEvent| handler()));
+    }
+
     pub fn on_resize<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
         self.on_resize =
             Some(self.add_window_event("resize", move |_: UiEvent| handler()));
-    }
-
-    pub fn on_unload<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(),
-    {
-        self.on_unload =
-            Some(self.add_window_event("unload", move |_: Event| handler()));
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
@@ -314,6 +319,7 @@ impl Canvas {
 
         closure
     }
+
 
     // The difference between add_event and add_user_event is that the latter has a special meaning
     // for browser security. A user event is a deliberate action by the user (like a mouse or key

@@ -9,7 +9,7 @@ use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
+use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement, UiEvent};
 
 pub fn exit_fullscreen() {
     let window = web_sys::window().expect("Failed to obtain window");
@@ -28,6 +28,22 @@ pub fn on_unload(mut handler: impl FnMut() + 'static) {
     window
         .add_event_listener_with_callback("beforeunload", &closure.as_ref().unchecked_ref())
         .expect("Failed to add close listener");
+}
+
+pub struct AnimationFrame {
+    closure: Closure<dyn FnMut(f64)>
+}
+impl AnimationFrame {
+    pub fn new(mut handler: impl FnMut(f64) + 'static) -> Self {
+        let closure = Closure::wrap(
+            Box::new(handler) as _
+        );
+        AnimationFrame { closure }
+    }
+    pub fn request_animation_frame(&self) {
+        web_sys::window().unwrap()
+            .request_animation_frame(self.closure.as_ref().unchecked_ref());
+    }
 }
 
 impl WindowExtWebSys for Window {
