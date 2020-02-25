@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent, UiEvent, BeforeUnloadEvent};
+use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent, UiEvent, BeforeUnloadEvent, AddEventListenerOptions};
 
 pub struct Canvas {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -119,7 +119,7 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_blur = Some(self.add_event("blur", move |_: FocusEvent| {
+        self.on_blur = Some(self.add_event("blur", None, move |_: FocusEvent| {
             handler();
         }));
     }
@@ -128,7 +128,7 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_focus = Some(self.add_event("focus", move |_: FocusEvent| {
+        self.on_focus = Some(self.add_event("focus", None, move |_: FocusEvent| {
             handler();
         }));
     }
@@ -173,7 +173,14 @@ impl Canvas {
         self.on_received_character = Some(self.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
-                handler(event::codepoint(&event));
+                // on chrome for the Delete, both key() and code() are "Delete"
+                let key = event.key();
+                let code = event.code();
+                if key != code {
+                    for c in key.chars() {
+                        handler(c);
+                    }
+                }
             },
         ));
     }
@@ -182,7 +189,7 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
+        self.on_cursor_leave = Some(self.add_event("pointerout", None, move |event: PointerEvent| {
             handler(event.pointer_id());
         }));
     }
@@ -191,7 +198,7 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
+        self.on_cursor_enter = Some(self.add_event("pointerover", None, move |event: PointerEvent| {
             handler(event.pointer_id());
         }));
     }
@@ -232,7 +239,9 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
-        self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
+        let mut options = AddEventListenerOptions::new();
+        options.passive(true);
+        self.on_cursor_move = Some(self.add_event("pointermove", Some(options), move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
                 event::mouse_position(&event).to_physical(super::scale_factor()),
@@ -245,11 +254,15 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
-        self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta, event::mouse_modifiers(&event));
+        let mut options = AddEventListenerOptions::new();
+        options.passive(true);
+        self.on_mouse_wheel = Some(self.add_event("wheel", Some(options),
+            move |event: WheelEvent| {
+                if let Some(delta) = event::mouse_scroll_delta(&event) {
+                    handler(0, delta, event::mouse_modifiers(&event));
+                }
             }
-        }));
+        ));
     }
 
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
@@ -257,7 +270,7 @@ impl Canvas {
         F: 'static + FnMut(),
     {
         self.on_fullscreen_change =
-            Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+            Some(self.add_event("fullscreenchange", None, move |_: Event| handler()));
     }
 
     pub fn on_before_unload<F>(&mut self, mut handler: F)
@@ -276,7 +289,7 @@ impl Canvas {
             Some(self.add_window_event("resize", move |_: UiEvent| handler()));
     }
 
-    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_event<E, F>(&self, event_name: &str, options: Option<AddEventListenerOptions>, mut handler: F) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -285,16 +298,19 @@ impl Canvas {
             {
                 let event_ref = event.as_ref();
                 event_ref.stop_propagation();
-                event_ref.cancel_bubble();
             }
 
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        self.raw
-            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
+        let mut options = options.unwrap_or_default();
+        options.capture(true);
 
+        self.raw.add_event_listener_with_callback_and_add_event_listener_options(
+            event_name, 
+            &closure.as_ref().unchecked_ref(),
+            &options
+        ).expect("Failed to add event listener with callback and listener options");
         closure
     }
 
@@ -332,7 +348,7 @@ impl Canvas {
         let wants_fullscreen = self.wants_fullscreen.clone();
         let canvas = self.raw.clone();
 
-        self.add_event(event_name, move |event: E| {
+        self.add_event(event_name, None, move |event: E| {
             handler(event);
 
             if *wants_fullscreen.borrow() {

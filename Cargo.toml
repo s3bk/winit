@@ -106,7 +106,8 @@ features = [
     'PointerEvent',
     'Window',
     'WheelEvent',
-    'UiEvent'
+    'UiEvent',
+    'AddEventListenerOptions',
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
